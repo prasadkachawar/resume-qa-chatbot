@@ -2,6 +2,8 @@ from flask import Blueprint, jsonify, request
 from app import db
 from app.models.user import User
 from app.models.contact import Contact
+from app.services.resume_vector_service import resume_vector_service
+import os
 
 bp = Blueprint('api', __name__)
 
@@ -145,3 +147,126 @@ def get_stats():
         'favorite_contacts': favorite_contacts,
         'relationship_breakdown': dict(relationship_counts)
     })
+
+# Resume Vector Processing Endpoints
+
+@bp.route('/resume/process', methods=['POST'])
+def process_resume():
+    """Process resume PDF and create vectors"""
+    try:
+        data = request.get_json()
+        
+        # Get parameters with defaults
+        pdf_filename = data.get('pdf_filename', 'Prassad Narayan Kachawar GResume .docx.pdf')
+        chunk_size = data.get('chunk_size', 100)
+        overlap = data.get('overlap', 10)
+        
+        # Build full path to PDF file
+        pdf_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', pdf_filename)
+        
+        # Process the resume
+        result = resume_vector_service.process_resume_pdf(pdf_path, chunk_size, overlap)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to process resume'
+        }), 500
+
+@bp.route('/resume/search', methods=['POST'])
+def search_resume():
+    """Search resume content using semantic search"""
+    try:
+        data = request.get_json()
+        query = data.get('query', '')
+        n_results = data.get('n_results', 5)
+        
+        if not query:
+            return jsonify({
+                'success': False,
+                'error': 'Query parameter is required',
+                'message': 'Please provide a search query'
+            }), 400
+        
+        result = resume_vector_service.search_resume_content(query, n_results)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to search resume content'
+        }), 500
+
+@bp.route('/resume/stats')
+def get_resume_stats():
+    """Get statistics about stored resume vectors"""
+    try:
+        result = resume_vector_service.get_resume_stats()
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to get resume statistics'
+        }), 500
+
+@bp.route('/resume/clear', methods=['DELETE'])
+def clear_resume_vectors():
+    """Clear all resume vectors"""
+    try:
+        result = resume_vector_service.clear_resume_vectors()
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to clear resume vectors'
+        }), 500
+
+@bp.route('/resume/reprocess', methods=['POST'])
+def reprocess_resume():
+    """Clear existing vectors and reprocess resume"""
+    try:
+        data = request.get_json() or {}
+        
+        pdf_filename = data.get('pdf_filename', 'Prassad Narayan Kachawar GResume .docx.pdf')
+        chunk_size = data.get('chunk_size', 100)
+        overlap = data.get('overlap', 10)
+        
+        # Build full path to PDF file
+        pdf_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', pdf_filename)
+        
+        result = resume_vector_service.reprocess_resume(pdf_path, chunk_size, overlap)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to reprocess resume'
+        }), 500

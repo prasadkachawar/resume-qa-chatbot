@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Q&A - Quick Launcher</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 40px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+        }
+        
+        .emoji {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+        
+        p {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+        
+        .launch-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+        
+        .launch-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
+        }
+        
+        .info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+            text-align: left;
+        }
+        
+        .info h3 {
+            color: #495057;
+            margin-top: 0;
+        }
+        
+        .info ul {
+            color: #6c757d;
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .info li {
+            margin-bottom: 8px;
+        }
+        
+        .status {
+            display: none;
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+        
+        .status.checking {
+            background: #fff3cd;
+            color: #856404;
+            display: block;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="emoji">🤖</div>
+        <h1>Resume Q&A</h1>
+        <p>Ask intelligent questions about your resume and get instant answers powered by AI and vector search!</p>
+        
+        <button class="launch-btn" onclick="checkAndLaunch()">
+            🚀 Launch Resume Q&A
+        </button>
+        
+        <div id="status" class="status"></div>
+        
+        <div class="info">
+            <h3>📋 What you can do:</h3>
+            <ul>
+                <li>Ask about your technical skills and experience</li>
+                <li>Get information about your education and background</li>
+                <li>Find your contact details and professional links</li>
+                <li>Explore your work history and projects</li>
+                <li>Use sample questions to get started quickly</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+        
+        async function checkServerStatus() {
+            try {
+                const response = await fetch('http://localhost:5001/api/resume/stats');
+                return response.ok;
+            } catch (error) {
+                return false;
+            }
+        }
+        
+        async function startServer() {
+            // This would need to be implemented to actually start the server
+            // For now, we'll just direct the user to start it manually
+            return false;
+        }
+        
+        async function checkAndLaunch() {
+            showStatus('🔍 Checking if Resume Q&A is running...', 'checking');
+            
+            const isRunning = await checkServerStatus();
+            
+            if (isRunning) {
+                showStatus('✅ Server is running! Opening Resume Q&A...', 'success');
+                window.open('http://localhost:5001/resume-qa', '_blank');
+            } else {
+                showStatus('❌ Server not running. Please run the launcher first: Resume_QA_Launcher.command', 'error');
+                
+                // Show instructions
+                setTimeout(() => {
+                    const instructions = `
+                    📝 To start the Resume Q&A system:
+                    
+                    1. Double-click "Resume_QA_Launcher.command" in the project folder
+                    2. Wait for it to start (about 3 seconds)
+                    3. It will automatically open in your browser
+                    
+                    Or run in terminal: python launch_app.py
+                    `;
+                    showStatus(instructions, 'error');
+                }, 2000);
+            }
+        }
+        
+        // Auto-check on page load
+        window.addEventListener('load', () => {
+            setTimeout(checkAndLaunch, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - My Info{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="display-6">
+                    <i class="fas fa-user text-primary me-3"></i>Profile
+                </h1>
+                <a href="{{ url_for('main.edit_profile') }}" class="btn btn-primary">
+                    <i class="fas fa-edit me-2"></i>Edit Profile
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    {% if user %}
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <i class="fas fa-user-circle fs-1 text-primary mb-3"></i>
+                            <h3>{{ user.full_name }}</h3>
+                            {% if user.job_title %}
+                                <p class="text-muted">{{ user.job_title }}{% if user.company %} at {{ user.company }}{% endif %}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <hr>
+                        
+                        <!-- Contact Information -->
+                        <h5 class="mb-3"><i class="fas fa-address-card me-2"></i>Contact Information</h5>
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                {% if user.email %}
+                                    <p><strong>Email:</strong> {{ user.email }}</p>
+                                {% endif %}
+                                {% if user.phone %}
+                                    <p><strong>Phone:</strong> {{ user.phone }}</p>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                {% if user.street_address or user.city or user.state %}
+                                    <p><strong>Address:</strong><br>
+                                    {% if user.street_address %}{{ user.street_address }}<br>{% endif %}
+                                    {% if user.city %}{{ user.city }}{% if user.state %}, {{ user.state }}{% endif %}{% if user.zip_code %} {{ user.zip_code }}{% endif %}{% endif %}
+                                    {% if user.country %}<br>{{ user.country }}{% endif %}
+                                    </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Bio -->
+                        {% if user.bio %}
+                            <h5 class="mb-3"><i class="fas fa-info-circle me-2"></i>About</h5>
+                            <p class="mb-4">{{ user.bio }}</p>
+                        {% endif %}
+                        
+                        <!-- Social Links -->
+                        {% if user.linkedin_url or user.github_url or user.website_url %}
+                            <h5 class="mb-3"><i class="fas fa-link me-2"></i>Links</h5>
+                            <div class="mb-4">
+                                {% if user.linkedin_url %}
+                                    <a href="{{ user.linkedin_url }}" target="_blank" class="btn btn-outline-primary me-2 mb-2">
+                                        <i class="fab fa-linkedin me-1"></i>LinkedIn
+                                    </a>
+                                {% endif %}
+                                {% if user.github_url %}
+                                    <a href="{{ user.github_url }}" target="_blank" class="btn btn-outline-dark me-2 mb-2">
+                                        <i class="fab fa-github me-1"></i>GitHub
+                                    </a>
+                                {% endif %}
+                                {% if user.website_url %}
+                                    <a href="{{ user.website_url }}" target="_blank" class="btn btn-outline-info me-2 mb-2">
+                                        <i class="fas fa-globe me-1"></i>Website
+                                    </a>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-user-plus fs-1 text-muted mb-3"></i>
+                        <h4>No Profile Yet</h4>
+                        <p class="text-muted mb-4">Create your profile to get started with managing your personal information.</p>
+                        <a href="{{ url_for('main.edit_profile') }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Create Profile
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

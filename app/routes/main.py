@@ -162,3 +162,8 @@ def delete_contact(contact_id):
         flash('Error deleting contact. Please try again.', 'error')
     
     return redirect(url_for('main.contacts'))
+
+@bp.route('/resume-qa')
+def resume_qa():
+    """Resume Question & Answer page"""
+    return render_template('resume_qa.html')
