@@ -21,6 +21,13 @@ def create_app(config_class=Config):
     from app.routes.api import bp as api_bp
     app.register_blueprint(api_bp, url_prefix='/api')
     
+    # Create tables if they don't exist
+    with app.app_context():
+        try:
+            db.create_all()
+        except Exception as e:
+            app.logger.warning(f"Could not create database tables: {e}")
+    
     return app
 
 # Import models to ensure they are known to SQLAlchemy

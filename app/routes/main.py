@@ -7,15 +7,24 @@ bp = Blueprint('main', __name__)
 
 @bp.route('/')
 def index():
+    """Redirect to Resume Q&A as the main feature"""
+    return redirect(url_for('main.resume_qa'))
+
+@bp.route('/dashboard')
+def dashboard():
     """Dashboard - Main page showing overview of user info and recent contacts"""
-    user = User.query.first()
-    recent_contacts = Contact.query.filter_by(user_id=user.id).order_by(Contact.updated_at.desc()).limit(5).all() if user else []
-    total_contacts = Contact.query.filter_by(user_id=user.id).count() if user else 0
-    
-    return render_template('index.html', 
-                         user=user, 
-                         recent_contacts=recent_contacts,
-                         total_contacts=total_contacts)
+    try:
+        user = User.query.first()
+        recent_contacts = Contact.query.filter_by(user_id=user.id).order_by(Contact.updated_at.desc()).limit(5).all() if user else []
+        total_contacts = Contact.query.filter_by(user_id=user.id).count() if user else 0
+        
+        return render_template('index.html', 
+                             user=user, 
+                             recent_contacts=recent_contacts,
+                             total_contacts=total_contacts)
+    except Exception as e:
+        # If database tables don't exist, redirect to Resume Q&A
+        return redirect(url_for('main.resume_qa'))
 
 @bp.route('/profile')
 def profile():
