@@ -107,14 +107,14 @@ class LLMService:
     
     def generate_answer(self, question: str, context: str) -> str:
         """
-        Generate intelligent answer using available LLM
+        Generate ONE intelligent answer using available LLM
         
         Args:
             question (str): User's question
-            context (str): Relevant context from resume
+            context (str): Relevant context from top 3 database results
             
         Returns:
-            str: Generated answer
+            str: Single generated answer (not multiple options)
         """
         try:
             if self.backend == 'ollama':
@@ -236,15 +236,15 @@ class LLMService:
             return f"Based on the available information: {context[:200]}..."
     
     def _create_prompt(self, question: str, context: str) -> str:
-        """Create a well-formatted prompt for LLM"""
-        return f"""Based on the following resume information, please answer the question clearly and concisely.
+        """Create a well-formatted prompt for LLM to generate ONE clear answer"""
+        return f"""Based on the following resume information, please provide ONE clear and concise answer to the question.
 
 Resume Context:
 {context}
 
 Question: {question}
 
-Answer:"""
+Provide a single, comprehensive answer:"""
 
     def get_available_models(self) -> List[str]:
         """Get list of available models based on backend"""

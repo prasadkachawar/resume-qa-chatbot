@@ -124,11 +124,10 @@ class ResumeQA {
             this.hideTypingIndicator();
             
             if (result.success && result.answer) {
-                // Use LLM-generated intelligent answer
+                // Display the single LLM-generated answer
                 this.addAnswerBubble(result.answer, {
-                    context_used: result.context_used,
                     llm_backend: result.llm_backend,
-                    search_results: result.search_results
+                    chunks_used: result.chunks_used
                 });
             } else {
                 // Fallback to search-based approach if LLM fails

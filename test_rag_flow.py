@@ -99,8 +99,8 @@ def test_top_3_retrieval():
         print()
 
 def test_llm_integration():
-    """Test Step 4: Verify LLM receives top 3 hits with query"""
-    print("🤖 STEP 4: Testing LLM Integration with Top 3 Hits")
+    """Test Step 4: Verify LLM receives top 3 hits and returns ONE answer"""
+    print("🤖 STEP 4: Testing LLM Integration - Single Answer Generation")
     print("=" * 60)
     
     test_question = "What are my main technical skills?"
@@ -112,17 +112,14 @@ def test_llm_integration():
         print(f"✅ RAG Pipeline successful!")
         print(f"   Question: '{result['question']}'")
         print(f"   LLM Backend: {result.get('llm_backend', 'Unknown')}")
-        print(f"   Chunks used: {result.get('num_chunks_used', 0)}")
-        print(f"   Answer: '{result['answer'][:100]}...'")
+        print(f"   Top 3 chunks used: {result.get('chunks_used', 0)}")
+        print(f"   SINGLE Answer: '{result['answer']}'")
+        print(f"   Answer length: {len(result['answer'])} characters")
         
-        # Show chunk details
-        chunks = result.get('context_chunks', [])
-        scores = result.get('chunk_scores', [])
+        # Verify it's a single answer (not multiple)
+        answer_lines = result['answer'].split('\n')
+        print(f"   Answer format: {len(answer_lines)} lines (should be cohesive)")
         
-        print(f"\n📋 Context Chunks Provided to LLM:")
-        for i, (chunk, score) in enumerate(zip(chunks, scores)):
-            relevance = max(0, 1 - score)
-            print(f"   {i+1}. [Relevance: {relevance:.3f}] '{chunk[:60]}...'")
     else:
         print(f"❌ RAG Pipeline failed: {result.get('error', 'Unknown error')}")
     
