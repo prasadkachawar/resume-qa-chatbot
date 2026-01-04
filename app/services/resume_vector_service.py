@@ -108,6 +108,78 @@ class ResumeVectorService:
                 'message': 'Failed to search resume content'
             }
     
+    def answer_question_with_llm(self, question: str, n_results: int = 5) -> Dict[str, Any]:
+        """
+        Answer questions about the resume using LLM-enhanced responses
+        
+        Args:
+            question: User's question
+            n_results: Number of context chunks to retrieve
+            
+        Returns:
+            LLM-generated answer with context
+        """
+        try:
+            # First, get relevant context from ChromaDB
+            search_results = self.search_resume_content(question, n_results)
+            
+            if not search_results['success']:
+                return search_results
+            
+            # Extract context text from search results
+            context_chunks = []
+            if search_results['results']['documents']:
+                context_chunks = search_results['results']['documents'][0]
+            
+            context = '\n'.join(context_chunks) if context_chunks else "No relevant context found"
+            
+            # Use LLM service to generate intelligent answer
+            try:
+                from app.services.llm_service import get_llm_service
+                llm_service = get_llm_service()
+                
+                intelligent_answer = llm_service.generate_answer(question, context)
+                
+                return {
+                    'success': True,
+                    'question': question,
+                    'answer': intelligent_answer,
+                    'context_used': context_chunks,
+                    'search_results': search_results['results'],
+                    'llm_backend': llm_service.backend,
+                    'message': 'Answer generated successfully'
+                }
+                
+            except ImportError:
+                # Fallback if LLM service not available
+                return self._generate_simple_answer(question, context_chunks, search_results)
+                
+        except Exception as e:
+            logger.error(f"Error generating LLM answer: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': 'Failed to generate answer'
+            }
+    
+    def _generate_simple_answer(self, question: str, context_chunks: List[str], search_results: Dict) -> Dict[str, Any]:
+        """Fallback method for generating answers without LLM"""
+        if context_chunks:
+            # Simple concatenation of relevant chunks
+            answer = f"Based on the resume information: {' '.join(context_chunks[:2])}"
+        else:
+            answer = "I couldn't find specific information about that in the resume."
+        
+        return {
+            'success': True,
+            'question': question,
+            'answer': answer,
+            'context_used': context_chunks,
+            'search_results': search_results['results'] if 'results' in search_results else {},
+            'llm_backend': 'simple_fallback',
+            'message': 'Simple answer generated (LLM not available)'
+        }
+    
     def get_resume_stats(self) -> Dict[str, Any]:
         """Get statistics about the stored resume vectors"""
         try:

@@ -208,6 +208,36 @@ def search_resume():
             'message': 'Failed to search resume content'
         }), 500
 
+@bp.route('/resume/ask', methods=['POST'])
+def ask_resume_question():
+    """Ask intelligent questions about the resume using LLM"""
+    try:
+        data = request.get_json()
+        question = data.get('question', '')
+        n_results = data.get('n_results', 5)
+        
+        if not question:
+            return jsonify({
+                'success': False,
+                'error': 'Question parameter is required',
+                'message': 'Please provide a question'
+            }), 400
+        
+        # Use LLM-enhanced answer generation
+        result = resume_vector_service.answer_question_with_llm(question, n_results)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to generate answer'
+        }), 500
+
 @bp.route('/resume/stats')
 def get_resume_stats():
     """Get statistics about stored resume vectors"""
@@ -269,4 +299,26 @@ def reprocess_resume():
             'success': False,
             'error': str(e),
             'message': 'Failed to reprocess resume'
+        }), 500
+
+@bp.route('/llm/status')
+def get_llm_status():
+    """Get LLM service status and capabilities"""
+    try:
+        from app.services.llm_service import get_llm_service
+        llm_service = get_llm_service()
+        
+        status = llm_service.get_status()
+        
+        return jsonify({
+            'success': True,
+            'llm_status': status,
+            'message': 'LLM status retrieved successfully'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to get LLM status'
         }), 500

@@ -106,15 +106,15 @@ class ResumeQA {
         this.showTypingIndicator();
         
         try {
-            // Make API call
-            const response = await fetch(`${this.apiBase}/search`, {
+            // Make API call to LLM-enhanced endpoint
+            const response = await fetch(`${this.apiBase}/ask`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    query: questionText,
-                    n_results: 3
+                    question: questionText,
+                    n_results: 5
                 })
             });
             
@@ -123,15 +123,37 @@ class ResumeQA {
             // Hide typing indicator
             this.hideTypingIndicator();
             
-            if (result.success && result.results.documents.length > 0) {
-                // Generate a contextual answer
-                const answer = this.generateAnswer(questionText, result.results);
-                this.addAnswerBubble(answer, result.results);
+            if (result.success && result.answer) {
+                // Use LLM-generated intelligent answer
+                this.addAnswerBubble(result.answer, {
+                    context_used: result.context_used,
+                    llm_backend: result.llm_backend,
+                    search_results: result.search_results
+                });
             } else {
-                this.addAnswerBubble(
-                    "I couldn't find specific information about that in your resume. Try asking about your experience, skills, education, or contact information.",
-                    null
-                );
+                // Fallback to search-based approach if LLM fails
+                const searchResponse = await fetch(`${this.apiBase}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: questionText,
+                        n_results: 3
+                    })
+                });
+                
+                const searchResult = await searchResponse.json();
+                
+                if (searchResult.success && searchResult.results.documents.length > 0) {
+                    const answer = this.generateAnswer(questionText, searchResult.results);
+                    this.addAnswerBubble(answer, searchResult.results);
+                } else {
+                    this.addAnswerBubble(
+                        "I couldn't find specific information about that in your resume. Try asking about your experience, skills, education, or contact information.",
+                        null
+                    );
+                }
             }
             
         } catch (error) {
