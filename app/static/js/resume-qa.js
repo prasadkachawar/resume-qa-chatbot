@@ -130,29 +130,11 @@ class ResumeQA {
                     chunks_used: result.chunks_used
                 });
             } else {
-                // Fallback to search-based approach if LLM fails
-                const searchResponse = await fetch(`${this.apiBase}/search`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        query: questionText,
-                        n_results: 3
-                    })
-                });
-                
-                const searchResult = await searchResponse.json();
-                
-                if (searchResult.success && searchResult.results.documents.length > 0) {
-                    const answer = this.generateAnswer(questionText, searchResult.results);
-                    this.addAnswerBubble(answer, searchResult.results);
-                } else {
-                    this.addAnswerBubble(
-                        "I couldn't find specific information about that in your resume. Try asking about your experience, skills, education, or contact information.",
-                        null
-                    );
-                }
+                // Show error message
+                this.addAnswerBubble(
+                    result.error || "I couldn't find specific information about that in your resume. Try asking about your experience, skills, education, or contact information.",
+                    null
+                );
             }
             
         } catch (error) {
@@ -261,18 +243,30 @@ class ResumeQA {
         answerDiv.className = 'answer-bubble';
         
         let sourceInfo = '';
-        if (results && results.documents.length > 0) {
-            const chunkCount = results.documents.length;
-            const avgDistance = results.distances.reduce((a, b) => a + b, 0) / results.distances.length;
-            const confidence = Math.max(0, (1 - avgDistance) * 100).toFixed(0);
-            
-            sourceInfo = `
-                <div class="answer-source">
-                    <i class="fas fa-info-circle me-1"></i>
-                    Found in ${chunkCount} resume section${chunkCount > 1 ? 's' : ''} 
-                    (${confidence}% confidence)
-                </div>
-            `;
+        if (results) {
+            // Handle new API response format (LLM backend)
+            if (results.llm_backend && results.chunks_used) {
+                sourceInfo = `
+                    <div class="answer-source">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Generated using ${results.llm_backend} from ${results.chunks_used} resume chunks
+                    </div>
+                `;
+            }
+            // Handle old search format (fallback)
+            else if (results.documents && results.documents.length > 0) {
+                const chunkCount = results.documents.length;
+                const avgDistance = results.distances.reduce((a, b) => a + b, 0) / results.distances.length;
+                const confidence = Math.max(0, (1 - avgDistance) * 100).toFixed(0);
+                
+                sourceInfo = `
+                    <div class="answer-source">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Found in ${chunkCount} resume section${chunkCount > 1 ? 's' : ''} 
+                        (${confidence}% confidence)
+                    </div>
+                `;
+            }
         }
         
         answerDiv.innerHTML = `
@@ -375,6 +369,66 @@ function clearChat() {
 
 function reprocessResume() {
     window.resumeQA.reprocessResume();
+}
+
+async function showStructuredInfo() {
+    try {
+        // Show loading
+        const loadingBubble = document.createElement('div');
+        loadingBubble.className = 'answer-bubble';
+        loadingBubble.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Extracting structured information...';
+        window.resumeQA.chatContainer.appendChild(loadingBubble);
+        window.resumeQA.scrollToBottom();
+        
+        // Fetch structured information
+        const response = await fetch('/api/resume/entities');
+        const result = await response.json();
+        
+        // Remove loading bubble
+        loadingBubble.remove();
+        
+        if (result.success) {
+            // Create structured info display
+            let infoHtml = '<h6><i class="fas fa-tags text-primary"></i> Extracted Entities</h6>';
+            
+            if (result.entities && Object.keys(result.entities).length > 0) {
+                for (const [entityType, entityList] of Object.entries(result.entities)) {
+                    infoHtml += `<div class="mb-2">`;
+                    infoHtml += `<strong>${entityType}:</strong> `;
+                    infoHtml += `<span class="text-muted">${entityList.join(', ')}</span>`;
+                    infoHtml += `</div>`;
+                }
+            } else {
+                infoHtml += '<p class="text-muted">No structured entities found.</p>';
+            }
+            
+            if (result.summary) {
+                infoHtml += `<div class="mt-3 p-2 bg-light rounded">`;
+                infoHtml += `<small><i class="fas fa-chart-bar"></i> Summary: ${result.summary.total_entities} entities of ${result.summary.entity_types} types</small>`;
+                infoHtml += `</div>`;
+            }
+            
+            const answerBubble = document.createElement('div');
+            answerBubble.className = 'answer-bubble';
+            answerBubble.innerHTML = infoHtml;
+            window.resumeQA.chatContainer.appendChild(answerBubble);
+        } else {
+            const errorBubble = document.createElement('div');
+            errorBubble.className = 'answer-bubble';
+            errorBubble.innerHTML = `<i class="fas fa-exclamation-triangle text-warning"></i> ${result.message || 'Failed to extract entities'}`;
+            window.resumeQA.chatContainer.appendChild(errorBubble);
+        }
+        
+        window.resumeQA.scrollToBottom();
+        
+    } catch (error) {
+        console.error('Error showing structured info:', error);
+        const errorBubble = document.createElement('div');
+        errorBubble.className = 'answer-bubble';
+        errorBubble.innerHTML = '<i class="fas fa-exclamation-triangle text-danger"></i> Error retrieving structured information';
+        window.resumeQA.chatContainer.appendChild(errorBubble);
+        window.resumeQA.scrollToBottom();
+    }
 }
 
 // Initialize when page loads

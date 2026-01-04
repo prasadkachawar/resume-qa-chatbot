@@ -13,6 +13,19 @@ class ResumeVectorService:
     def __init__(self):
         self.chromadb_service = chromadb_service
         self.pdf_processor = PDFProcessor()
+        # Initialize NER service for entity extraction
+        self.ner_service = None
+        self._initialize_ner_service()
+    
+    def _initialize_ner_service(self):
+        """Initialize Resume NER service"""
+        try:
+            from app.services.resume_ner_service import get_resume_ner_service
+            self.ner_service = get_resume_ner_service()
+            logger.info("✅ Resume NER service initialized")
+        except Exception as e:
+            logger.warning(f"NER service not available: {e}")
+            self.ner_service = None
     
     def process_resume_pdf(self, pdf_path: str, chunk_size: int = 100, overlap: int = 10) -> Dict[str, Any]:
         """
@@ -140,8 +153,8 @@ class ResumeVectorService:
                 }
             
             # STEP 2: Extract top 3 results
-            top_3_chunks = search_results['documents'][0] if search_results['documents'] else []
-            distances = search_results['distances'][0] if search_results['distances'] else []
+            top_3_chunks = search_results['documents'] if search_results['documents'] else []
+            distances = search_results['distances'] if search_results['distances'] else []
             
             logger.info(f"📊 Step 2: Retrieved top {len(top_3_chunks)} chunks from database")
             
@@ -231,6 +244,195 @@ class ResumeVectorService:
             'chunks_used': len(top_3_chunks),
             'message': f'Single fallback answer generated from top {len(top_3_chunks)} results'
         }
+
+    def extract_resume_entities(self, pdf_path: str = None, text: str = None) -> Dict[str, Any]:
+        """
+        Extract structured information from resume using NER model
+        
+        Args:
+            pdf_path: Path to PDF file (optional)
+            text: Resume text directly (optional)
+            
+        Returns:
+            Dictionary with extracted entities
+        """
+        try:
+            # Get text from PDF or use provided text
+            if pdf_path and os.path.exists(pdf_path):
+                resume_text = self.pdf_processor.extract_text_from_pdf(pdf_path)
+            elif text:
+                resume_text = text
+            else:
+                return {
+                    'success': False,
+                    'error': 'Either pdf_path or text must be provided',
+                    'message': 'No input provided for entity extraction'
+                }
+            
+            # Extract entities using NER model
+            if self.ner_service:
+                ner_result = self.ner_service.extract_entities(resume_text)
+                
+                if ner_result['success']:
+                    # Enhance with summary
+                    summary = self.ner_service.get_entity_summary(ner_result['entities'])
+                    
+                    return {
+                        'success': True,
+                        'entities': ner_result['entities'],
+                        'summary': summary,
+                        'model_used': ner_result['model_used'],
+                        'message': f"Extracted {summary['total_entities']} entities of {summary['entity_types']} types"
+                    }
+                else:
+                    return ner_result
+            else:
+                return {
+                    'success': False,
+                    'error': 'NER service not available',
+                    'message': 'Resume NER model not loaded'
+                }
+                
+        except Exception as e:
+            logger.error(f"Error extracting resume entities: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': 'Failed to extract entities from resume'
+            }
+    
+    def get_structured_resume_info(self, pdf_path: str = None) -> Dict[str, Any]:
+        """
+        Get both vector search capability and structured NER information
+        
+        Args:
+            pdf_path: Path to resume PDF
+            
+        Returns:
+            Combined information from vector database and NER extraction
+        """
+        try:
+            result = {
+                'success': True,
+                'vector_stats': {},
+                'structured_entities': {},
+                'message': 'Resume information retrieved successfully'
+            }
+            
+            # Get vector database stats
+            vector_stats = self.get_resume_stats()
+            if vector_stats['success']:
+                result['vector_stats'] = vector_stats['stats']
+            
+            # Extract structured entities if PDF path provided
+            if pdf_path:
+                entity_result = self.extract_resume_entities(pdf_path=pdf_path)
+                if entity_result['success']:
+                    result['structured_entities'] = entity_result['entities']
+                    result['entity_summary'] = entity_result['summary']
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error getting structured resume info: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'message': 'Failed to retrieve structured resume information'
+            }
+    
+    def answer_with_entity_context(self, question: str, pdf_path: str = None) -> Dict[str, Any]:
+        """
+        Enhanced answering using both vector search and entity extraction
+        
+        Args:
+            question: User's question
+            pdf_path: Path to resume PDF for entity extraction
+            
+        Returns:
+            Enhanced answer with entity context
+        """
+        try:
+            # Get standard RAG answer
+            rag_result = self.answer_question_with_llm(question, n_results=3)
+            
+            if not rag_result['success']:
+                return rag_result
+            
+            # Enhance with entity information if available
+            if self.ner_service and pdf_path and os.path.exists(pdf_path):
+                entity_result = self.extract_resume_entities(pdf_path=pdf_path)
+                
+                if entity_result['success']:
+                    # Add entity context to the answer
+                    entities = entity_result['entities']
+                    
+                    # Check if question relates to specific entity types
+                    entity_context = self._get_relevant_entities(question, entities)
+                    
+                    if entity_context:
+                        enhanced_answer = f"{rag_result['answer']}\n\nStructured Information: {entity_context}"
+                        rag_result['answer'] = enhanced_answer
+                        rag_result['entities_used'] = entity_context
+                        rag_result['enhancement'] = 'NER_enhanced'
+            
+            return rag_result
+            
+        except Exception as e:
+            logger.error(f"Error in enhanced answering: {e}")
+            # Fall back to standard RAG
+            return self.answer_question_with_llm(question, n_results=3)
+    
+    def _get_relevant_entities(self, question: str, entities: Dict[str, List[str]]) -> str:
+        """Get relevant entity information based on question context"""
+        question_lower = question.lower()
+        relevant_info = []
+        
+        if any(word in question_lower for word in ['skill', 'technology', 'programming', 'language']):
+            if 'Technical Skill' in entities:
+                relevant_info.append(f"Skills: {', '.join(entities['Technical Skill'])}")
+            if 'Technical Skills' in entities:
+                relevant_info.append(f"Skills: {', '.join(entities['Technical Skills'])}")
+            if 'Programming Language' in entities:
+                relevant_info.append(f"Languages: {', '.join(entities['Programming Language'])}")
+            if 'Programming Languages' in entities:
+                relevant_info.append(f"Languages: {', '.join(entities['Programming Languages'])}")
+        
+        if any(word in question_lower for word in ['contact', 'email', 'phone', 'reach']):
+            if 'Email Address' in entities:
+                relevant_info.append(f"Email: {', '.join(entities['Email Address'])}")
+            if 'Email Addresses' in entities:
+                relevant_info.append(f"Email: {', '.join(entities['Email Addresses'])}")
+            if 'Phone Number' in entities:
+                relevant_info.append(f"Phone: {', '.join(entities['Phone Number'])}")
+            if 'Phone Numbers' in entities:
+                relevant_info.append(f"Phone: {', '.join(entities['Phone Numbers'])}")
+        
+        if any(word in question_lower for word in ['education', 'degree', 'college', 'university']):
+            if 'Educational Institution' in entities:
+                relevant_info.append(f"Institutions: {', '.join(entities['Educational Institution'])}")
+            if 'Educational Institutions' in entities:
+                relevant_info.append(f"Institutions: {', '.join(entities['Educational Institutions'])}")
+            if 'Academic Degree' in entities:
+                relevant_info.append(f"Degrees: {', '.join(entities['Academic Degree'])}")
+            if 'Academic Degrees' in entities:
+                relevant_info.append(f"Degrees: {', '.join(entities['Academic Degrees'])}")
+            if 'Degree' in entities:
+                relevant_info.append(f"Degrees: {', '.join(entities['Degree'])}")
+        
+        if any(word in question_lower for word in ['work', 'job', 'position', 'company', 'organization']):
+            if 'Organization' in entities:
+                relevant_info.append(f"Companies: {', '.join(entities['Organization'])}")
+            if 'Organizations/Companies' in entities:
+                relevant_info.append(f"Companies: {', '.join(entities['Organizations/Companies'])}")
+            if 'Job Title' in entities:
+                relevant_info.append(f"Positions: {', '.join(entities['Job Title'])}")
+            if 'Job Titles/Positions' in entities:
+                relevant_info.append(f"Positions: {', '.join(entities['Job Titles/Positions'])}")
+            if 'Designation' in entities:
+                relevant_info.append(f"Positions: {', '.join(entities['Designation'])}")
+        
+        return '; '.join(relevant_info) if relevant_info else ""
     
     def get_resume_stats(self) -> Dict[str, Any]:
         """Get statistics about the stored resume vectors"""

@@ -31,3 +31,9 @@ ollama==0.1.7
 huggingface-hub==0.19.4
 tokenizers==0.15.0
 accelerate==0.25.0
+
+# Resume NER model dependencies
+datasets==2.14.0
+evaluate==0.4.0
+scikit-learn==1.3.0
+seqeval==1.2.2

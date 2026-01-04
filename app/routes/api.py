@@ -330,3 +330,80 @@ def get_llm_status():
             'error': str(e),
             'message': 'Failed to get LLM status'
         }), 500
+
+@bp.route('/resume/entities', methods=['GET'])
+def get_resume_entities():
+    """Extract structured entities from resume using NER model"""
+    try:
+        # Get PDF path from data folder
+        pdf_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'Prassad Narayan Kachawar GResume .docx.pdf')
+        
+        result = resume_vector_service.extract_resume_entities(pdf_path=pdf_path)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to extract entities from resume'
+        }), 500
+
+@bp.route('/resume/structured-info', methods=['GET'])
+def get_structured_resume_info():
+    """Get combined vector stats and structured entity information"""
+    try:
+        # Get PDF path from data folder
+        pdf_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'Prassad Narayan Kachawar GResume .docx.pdf')
+        
+        result = resume_vector_service.get_structured_resume_info(pdf_path=pdf_path)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to get structured resume information'
+        }), 500
+
+@bp.route('/resume/ask-enhanced', methods=['POST'])
+def ask_resume_question_enhanced():
+    """
+    Enhanced question answering using both RAG and NER
+    Combines vector search with structured entity extraction
+    """
+    try:
+        data = request.get_json()
+        question = data.get('question', '')
+        
+        if not question:
+            return jsonify({
+                'success': False,
+                'error': 'Question parameter is required',
+                'message': 'Please provide a question'
+            }), 400
+        
+        # Get PDF path from data folder
+        pdf_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'Prassad Narayan Kachawar GResume .docx.pdf')
+        
+        # Use enhanced answering with entity context
+        result = resume_vector_service.answer_with_entity_context(question, pdf_path=pdf_path)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to generate enhanced answer'
+        }), 500
