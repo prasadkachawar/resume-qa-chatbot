@@ -108,76 +108,140 @@ class ResumeVectorService:
                 'message': 'Failed to search resume content'
             }
     
-    def answer_question_with_llm(self, question: str, n_results: int = 5) -> Dict[str, Any]:
+    def answer_question_with_llm(self, question: str, n_results: int = 3) -> Dict[str, Any]:
         """
-        Answer questions about the resume using LLM-enhanced responses
+        Optimized RAG flow: Chunking -> Embedding -> Retrieval -> LLM Generation
+        
+        Flow:
+        1. Text is already chunked with overlapping windows (nothing missed)
+        2. User query embedded with same embedding method as document chunks
+        3. Retrieve top 3 results from vector database
+        4. Send top 3 hits with user query to LLM and parse answer to user
         
         Args:
             question: User's question
-            n_results: Number of context chunks to retrieve
+            n_results: Number of context chunks to retrieve (default: 3 for optimal performance)
             
         Returns:
             LLM-generated answer with context
         """
         try:
-            # First, get relevant context from ChromaDB
-            search_results = self.search_resume_content(question, n_results)
+            logger.info(f"🔍 Step 1: Processing query: '{question}'")
             
-            if not search_results['success']:
-                return search_results
+            # STEP 2: User query embedded with same embedding method
+            # ChromaDB automatically uses the same embedding function for search as storage
+            search_results = self.chromadb_service.search_similar_chunks(question, n_results)
             
-            # Extract context text from search results
-            context_chunks = []
-            if search_results['results']['documents']:
-                context_chunks = search_results['results']['documents'][0]
+            if not search_results or 'documents' not in search_results:
+                return {
+                    'success': False,
+                    'error': 'No search results found',
+                    'message': 'Unable to find relevant information'
+                }
             
-            context = '\n'.join(context_chunks) if context_chunks else "No relevant context found"
+            # STEP 3: Retrieve top 3 results from database
+            top_chunks = search_results['documents'][0] if search_results['documents'] else []
+            distances = search_results['distances'][0] if search_results['distances'] else []
             
-            # Use LLM service to generate intelligent answer
+            logger.info(f"📊 Step 3: Retrieved {len(top_chunks)} chunks with distances: {distances}")
+            
+            if not top_chunks:
+                return {
+                    'success': False,
+                    'error': 'No relevant chunks found',
+                    'message': 'Could not find relevant information in the resume'
+                }
+            
+            # Prepare context from top 3 hits
+            context = self._prepare_context_from_chunks(top_chunks, distances)
+            
+            # STEP 4: Send top 3 hits with user query to LLM
+            logger.info(f"🤖 Step 4: Generating LLM response with {len(top_chunks)} context chunks")
+            
             try:
                 from app.services.llm_service import get_llm_service
                 llm_service = get_llm_service()
                 
+                # Generate intelligent answer using LLM with context
                 intelligent_answer = llm_service.generate_answer(question, context)
+                
+                logger.info(f"✅ Successfully generated LLM answer using {llm_service.backend} backend")
                 
                 return {
                     'success': True,
                     'question': question,
                     'answer': intelligent_answer,
-                    'context_used': context_chunks,
-                    'search_results': search_results['results'],
+                    'context_chunks': top_chunks,
+                    'chunk_scores': distances,
+                    'num_chunks_used': len(top_chunks),
                     'llm_backend': llm_service.backend,
-                    'message': 'Answer generated successfully'
+                    'message': f'Answer generated using {len(top_chunks)} most relevant chunks'
                 }
                 
-            except ImportError:
-                # Fallback if LLM service not available
-                return self._generate_simple_answer(question, context_chunks, search_results)
+            except ImportError as e:
+                logger.warning(f"LLM service not available: {e}, using fallback")
+                return self._generate_fallback_answer(question, top_chunks, distances)
                 
         except Exception as e:
-            logger.error(f"Error generating LLM answer: {str(e)}")
+            logger.error(f"Error in RAG pipeline: {str(e)}")
             return {
                 'success': False,
                 'error': str(e),
-                'message': 'Failed to generate answer'
+                'message': 'Failed to process question through RAG pipeline'
             }
     
-    def _generate_simple_answer(self, question: str, context_chunks: List[str], search_results: Dict) -> Dict[str, Any]:
-        """Fallback method for generating answers without LLM"""
-        if context_chunks:
-            # Simple concatenation of relevant chunks
-            answer = f"Based on the resume information: {' '.join(context_chunks[:2])}"
+    def _prepare_context_from_chunks(self, chunks: List[str], distances: List[float]) -> str:
+        """
+        Prepare context from retrieved chunks, ordered by relevance
+        
+        Args:
+            chunks: Retrieved text chunks
+            distances: Similarity distances (lower = more similar)
+            
+        Returns:
+            Formatted context string
+        """
+        # Sort chunks by relevance (lower distance = more relevant)
+        chunk_data = list(zip(chunks, distances))
+        chunk_data.sort(key=lambda x: x[1])  # Sort by distance
+        
+        # Format context with relevance indicators
+        context_parts = []
+        for i, (chunk, distance) in enumerate(chunk_data):
+            relevance_score = max(0, 1 - distance)  # Convert distance to relevance (0-1)
+            context_parts.append(f"[Context {i+1} - Relevance: {relevance_score:.2f}]\n{chunk.strip()}")
+        
+        return "\n\n".join(context_parts)
+    
+    def _generate_fallback_answer(self, question: str, chunks: List[str], distances: List[float]) -> Dict[str, Any]:
+        """
+        Fallback method when LLM is not available
+        Uses simple text processing with the top 3 chunks
+        """
+        # Use the most relevant chunk (lowest distance)
+        best_chunk = chunks[0] if chunks else ""
+        
+        # Simple answer construction
+        if any(keyword in question.lower() for keyword in ['skill', 'technology', 'programming']):
+            answer = f"Based on the resume, the technical skills include: {best_chunk}"
+        elif any(keyword in question.lower() for keyword in ['experience', 'work', 'job']):
+            answer = f"Work experience summary: {best_chunk}"
+        elif any(keyword in question.lower() for keyword in ['education', 'degree', 'study']):
+            answer = f"Educational background: {best_chunk}"
+        elif any(keyword in question.lower() for keyword in ['contact', 'email', 'phone']):
+            answer = f"Contact information: {best_chunk}"
         else:
-            answer = "I couldn't find specific information about that in the resume."
+            answer = f"Based on the resume information: {best_chunk}"
         
         return {
             'success': True,
             'question': question,
             'answer': answer,
-            'context_used': context_chunks,
-            'search_results': search_results['results'] if 'results' in search_results else {},
+            'context_chunks': chunks,
+            'chunk_scores': distances,
+            'num_chunks_used': len(chunks),
             'llm_backend': 'simple_fallback',
-            'message': 'Simple answer generated (LLM not available)'
+            'message': f'Fallback answer generated using {len(chunks)} chunks'
         }
     
     def get_resume_stats(self) -> Dict[str, Any]:

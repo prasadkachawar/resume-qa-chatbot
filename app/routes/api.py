@@ -210,11 +210,19 @@ def search_resume():
 
 @bp.route('/resume/ask', methods=['POST'])
 def ask_resume_question():
-    """Ask intelligent questions about the resume using LLM"""
+    """
+    Ask intelligent questions about the resume using optimized RAG flow
+    
+    Flow:
+    1. Chunking with overlapping windows (already done during processing)
+    2. User query embedded with same embedding method
+    3. Retrieve top 3 results from vector database
+    4. Send top 3 hits with user query to LLM for answer generation
+    """
     try:
         data = request.get_json()
         question = data.get('question', '')
-        n_results = data.get('n_results', 5)
+        n_results = 3  # Fixed to 3 as per specification
         
         if not question:
             return jsonify({
@@ -223,7 +231,7 @@ def ask_resume_question():
                 'message': 'Please provide a question'
             }), 400
         
-        # Use LLM-enhanced answer generation
+        # Use optimized RAG pipeline: exactly 3 results
         result = resume_vector_service.answer_question_with_llm(question, n_results)
         
         if result['success']:

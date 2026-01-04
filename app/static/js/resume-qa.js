@@ -106,15 +106,15 @@ class ResumeQA {
         this.showTypingIndicator();
         
         try {
-            // Make API call to LLM-enhanced endpoint
+            // Optimized RAG Flow: Use exactly 3 results for optimal performance
             const response = await fetch(`${this.apiBase}/ask`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    question: questionText,
-                    n_results: 5
+                    question: questionText
+                    // n_results: 3 is fixed in backend
                 })
             });
             
